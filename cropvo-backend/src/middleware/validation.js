@@ -8,7 +8,7 @@
  * Required fields: name, email, password, confirmPassword
  */
 const validateSignup = (req, res, next) => {
-  const { name, email, password, confirmPassword } = req.body;
+  const { name, email, password, confirmPassword, role } = req.body;
 
   if (!name || !email || !password || !confirmPassword) {
     return res.status(400).json({
@@ -32,6 +32,17 @@ const validateSignup = (req, res, next) => {
       success: false,
       message: 'Password must be at least 6 characters long',
     });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Passwords do not match',
+    });
+  }
+
+  if (role && !['patient', 'doctor', 'admin'].includes(role)) {
+    return res.status(400).json({ success: false, message: 'Invalid role. Must be patient, doctor, or admin' });
   }
 
   next();

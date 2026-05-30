@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 /**
  * Verify JWT token middleware
- * Adds userId to req object if token is valid
+ * Adds userId and role to req object if token is valid
  * Required for protected routes
  */
 const verifyToken = (req, res, next) => {
@@ -25,6 +25,7 @@ const verifyToken = (req, res, next) => {
 
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
+    req.userRole = decoded.role;
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -41,4 +42,17 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-module.exports = verifyToken;
+const requireRole = (...allowedRoles) => (req, res, next) => {
+  if (!req.userRole || !allowedRoles.includes(req.userRole)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied: insufficient permissions',
+    });
+  }
+  next();
+};
+
+module.exports = {
+  verifyToken,
+  requireRole,
+};

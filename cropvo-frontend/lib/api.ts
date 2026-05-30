@@ -1,4 +1,4 @@
-// ============================================
+﻿// ============================================
 // API Utility
 // ============================================
 // Centralized API calls with caching, error handling, and security
@@ -14,9 +14,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * Cleanup cache entry after duration
  */
 const setCacheExpiry = (key: string) => {
-  setTimeout(() => {
-    requestCache.delete(key);
-  }, CACHE_DURATION);
+  setTimeout(() => requestCache.delete(key), CACHE_DURATION);
 };
 
 /**
@@ -68,12 +66,19 @@ export async function apiCall(
 
     clearTimeout(timeoutId);
 
-    // Parse response
-    const data = await response.json();
+    let data: any = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
 
     // Handle HTTP errors
     if (!response.ok) {
-      throw new Error(data.message || `HTTP Error: ${response.status}`);
+      const message = data && typeof data === 'object'
+        ? (data.message || data.error || `HTTP Error: ${response.status} ${response.statusText}`)
+        : `HTTP Error: ${response.status} ${response.statusText}`;
+      throw new Error(message);
     }
 
     // Cache successful GET requests
@@ -102,11 +107,12 @@ export async function signup(
   name: string,
   email: string,
   password: string,
-  confirmPassword: string
+  confirmPassword: string,
+  role: string = 'patient'
 ) {
   return apiCall('/auth/signup', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password, confirmPassword }),
+    body: JSON.stringify({ name, email, password, confirmPassword, role }),
   });
 }
 
@@ -114,10 +120,10 @@ export async function signup(
  * User login
  * POST /auth/login
  */
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, role: string) {
   return apiCall('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, role }),
   });
 }
 
@@ -125,9 +131,39 @@ export async function login(email: string, password: string) {
  * Get all users
  * GET /users
  */
-export async function getUsers() {
+export async function getUsers(token: string) {
   return apiCall('/users', {
     method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+/**
+ * Delete user
+ * DELETE /users/:id
+ */
+export async function deleteUser(userId: string, token: string) {
+  return apiCall(`/users/${userId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+/**
+ * Update user role
+ * PATCH /users/:id
+ */
+export async function updateUserRole(userId: string, role: string, token: string) {
+  return apiCall(`/users/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ role }),
   });
 }
 
@@ -151,4 +187,3 @@ export async function getUserProfile(token: string) {
 export function clearCache() {
   requestCache.clear();
 }
-

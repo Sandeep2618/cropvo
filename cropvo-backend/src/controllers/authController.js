@@ -4,56 +4,46 @@
 // Handles user registration and login logic
 
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const {
+  getModelByRole,
+  getUserRole,
+  findUserByEmail,
+  extractRoleFields,
+} = require('../utils/userModels');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const JWT_EXPIRY = '7d';
 
-/**
- * Generate JWT token
- * @param {string} userId - User ID
- * @returns {string} JWT token
- */
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+const generateToken = (userId, role) => {
+  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 };
 
-/**
- * User Signup/Registration
- * POST /auth/signup
- */
 const signup = async (req, res) => {
   try {
-    const { name, email, password, confirmPassword } = req.body;
+    const { name, email, password, confirmPassword, role } = req.body;
 
-    // Validate password match
     if (password !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passwords do not match',
-      });
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await findUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email already registered',
-      });
+      return res.status(400).json({ success: false, message: 'Email already registered' });
     }
 
-    // Create new user (password will be hashed automatically by schema middleware)
-    const newUser = new User({
+    const normalizedRole = getUserRole(role);
+    const UserModel = getModelByRole(normalizedRole);
+    const profilePayload = extractRoleFields(normalizedRole, req.body);
+
+    const newUser = await UserModel.create({
       name,
       email,
       password,
+      role: normalizedRole,
+      ...profilePayload,
     });
 
-    await newUser.save();
-
-    // Generate JWT token
-    const token = generateToken(newUser._id);
+    const token = generateToken(newUser._id, newUser.role);
 
     res.status(201).json({
       success: true,
@@ -63,44 +53,37 @@ const signup = async (req, res) => {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,
+        role: newUser.role,
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Signup failed',
-    });
+    res.status(500).json({ success: false, message: error.message || 'Signup failed' });
   }
 };
 
-/**
- * User Login
- * POST /auth/login
- */
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
+    const normalizedRole = role ? getUserRole(role) : undefined;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    const user = await findUserByEmail(email, normalizedRole, true);
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-      });
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    // Compare passwords
     const isPasswordCorrect = await user.comparePassword(password);
     if (!isPasswordCorrect) {
-      return res.status(401).json({
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+
+    if (normalizedRole && user.role !== normalizedRole) {
+      return res.status(403).json({
         success: false,
-        message: 'Invalid email or password',
+        message: `This account is not registered as ${normalizedRole}. Please select the correct role.`,
       });
     }
 
-    // Generate JWT token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.json({
       success: true,
@@ -110,13 +93,11 @@ const login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Login failed',
-    });
+    res.status(500).json({ success: false, message: error.message || 'Login failed' });
   }
 };
 
