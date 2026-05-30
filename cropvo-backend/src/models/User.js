@@ -10,6 +10,7 @@ const buildUserSchema = () => {
         type: String,
         required: [true, 'Name is required'],
         trim: true,
+        // Not unique — multiple users can share the same name
       },
       email: {
         type: String,
@@ -31,20 +32,14 @@ const buildUserSchema = () => {
         select: false,
       },
     },
-    {
-      timestamps: true,
-    }
+    { timestamps: true }
   );
 
   schema.pre('save', async function (next) {
-    if (!this.isModified('password')) {
-      return next();
-    }
+    if (!this.isModified('password')) return next();
 
     const bcryptHashRegex = /^\$2[aby]\$.{56}$/;
-    if (bcryptHashRegex.test(this.password)) {
-      return next();
-    }
+    if (bcryptHashRegex.test(this.password)) return next();
 
     try {
       const salt = await bcrypt.genSalt(10);
@@ -62,7 +57,4 @@ const buildUserSchema = () => {
   return schema;
 };
 
-module.exports = {
-  VALID_ROLES,
-  buildUserSchema,
-};
+module.exports = { VALID_ROLES, buildUserSchema };

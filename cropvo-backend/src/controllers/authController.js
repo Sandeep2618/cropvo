@@ -28,7 +28,10 @@ const signup = async (req, res) => {
 
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Email already registered' });
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email already exists. Please log in instead.',
+      });
     }
 
     const normalizedRole = getUserRole(role);
@@ -57,7 +60,29 @@ const signup = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message || 'Signup failed' });
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0];
+      if (field === 'email') {
+        return res.status(400).json({
+          success: false,
+          message: 'An account with this email already exists. Please log in instead.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: 'Account could not be created due to a database conflict. Please try again.',
+      });
+    }
+
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map((e) => e.message);
+      return res.status(400).json({
+        success: false,
+        message: messages[0] || 'Validation failed. Please check your input.',
+      });
+    }
+
+    return res.status(500).json({ success: false, message: 'Signup failed. Please try again.' });
   }
 };
 
@@ -79,7 +104,7 @@ const login = async (req, res) => {
     if (normalizedRole && user.role !== normalizedRole) {
       return res.status(403).json({
         success: false,
-        message: `This account is not registered as ${normalizedRole}. Please select the correct role.`,
+        message: `This account is registered as a ${user.role}, not a ${normalizedRole}. Please select the correct role.`,
       });
     }
 
@@ -97,7 +122,7 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message || 'Login failed' });
+    res.status(500).json({ success: false, message: 'Login failed. Please try again.' });
   }
 };
 

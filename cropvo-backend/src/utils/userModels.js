@@ -1,7 +1,6 @@
 const Patient = require('../models/Patient');
 const Doctor = require('../models/Doctor');
 const Admin = require('../models/Admin');
-const LegacyUser = require('../models/LegacyUser');
 
 const VALID_ROLES = ['patient', 'doctor', 'admin'];
 
@@ -22,64 +21,58 @@ const getUserRole = (role) => {
 };
 
 const findUserByEmail = async (email, role, includePassword = false) => {
-  const field = includePassword ? '+password' : undefined;
+  const select = includePassword ? '+password' : undefined;
 
+  // Search the role-specific collection first
   if (role) {
     const model = getModelByRole(role);
-    return field ? model.findOne({ email }).select(field) : model.findOne({ email });
+    const q = model.findOne({ email });
+    const user = select ? await q.select(select) : await q;
+    if (user) return user;
+    // Fall through to search all collections if not found in primary
   }
 
+  // Search all collections
   for (const currentRole of VALID_ROLES) {
     const model = getModelByRole(currentRole);
-    const query = model.findOne({ email });
-    const user = field ? await query.select(field) : await query;
+    const q = model.findOne({ email });
+    const user = select ? await q.select(select) : await q;
     if (user) return user;
-  }
-
-  if (LegacyUser) {
-    const legacyQuery = LegacyUser.findOne({ email });
-    return field ? legacyQuery.select(field) : legacyQuery;
   }
 
   return null;
 };
 
 const findUserById = async (id, role, includePassword = false) => {
-  const field = includePassword ? '+password' : undefined;
+  const select = includePassword ? '+password' : undefined;
 
   if (role) {
     const model = getModelByRole(role);
-    return field ? model.findById(id).select(field) : model.findById(id);
+    const q = model.findById(id);
+    return select ? q.select(select) : q;
   }
 
   for (const currentRole of VALID_ROLES) {
     const model = getModelByRole(currentRole);
-    const query = model.findById(id);
-    const user = field ? await query.select(field) : await query;
+    const q = model.findById(id);
+    const user = select ? await q.select(select) : await q;
     if (user) return user;
-  }
-
-  if (LegacyUser) {
-    const legacyQuery = LegacyUser.findById(id);
-    return field ? legacyQuery.select(field) : legacyQuery;
   }
 
   return null;
 };
 
 const getAllUsers = async () => {
-  const [patients, doctors, admins, legacyUsers] = await Promise.all([
+  const [patients, doctors, admins] = await Promise.all([
     Patient.find().select('-password -__v'),
     Doctor.find().select('-password -__v'),
     Admin.find().select('-password -__v'),
-    LegacyUser.find().select('-password -__v'),
   ]);
 
   return [
     ...patients.map((doc) => ({ ...doc.toObject(), role: 'patient' })),
     ...doctors.map((doc) => ({ ...doc.toObject(), role: 'doctor' })),
     ...admins.map((doc) => ({ ...doc.toObject(), role: 'admin' })),
-    ...legacyUsers.map((doc) => ({ ...doc.toObject(), role: doc.role || 'patient' })),
   ];
 };
 
@@ -93,9 +86,7 @@ const extractRoleFields = (role, data = {}) => {
 
   const profileFields = fieldsByRole[normalizedRole] || [];
   return profileFields.reduce((payload, field) => {
-    if (data[field] !== undefined) {
-      payload[field] = data[field];
-    }
+    if (data[field] !== undefined) payload[field] = data[field];
     return payload;
   }, {});
 };

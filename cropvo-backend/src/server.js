@@ -12,6 +12,7 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const storeRoutes = require('./routes/storeRoutes');
 
 // Initialize app
 const app = express();
@@ -54,6 +55,9 @@ app.use('/auth', authRoutes);
 
 // User routes
 app.use('/', userRoutes);
+
+// Medical store routes
+app.use('/', storeRoutes);
 
 // ============================================
 // 404 Handler
