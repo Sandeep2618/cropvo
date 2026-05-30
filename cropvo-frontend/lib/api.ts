@@ -187,3 +187,126 @@ export async function getUserProfile(token: string) {
 export function clearCache() {
   requestCache.clear();
 }
+
+/**
+ * Invalidate cached GET responses (e.g. after store mutations)
+ */
+export function invalidateCache(match?: string) {
+  if (!match) {
+    requestCache.clear();
+    return;
+  }
+  for (const key of requestCache.keys()) {
+    if (key.includes(match)) {
+      requestCache.delete(key);
+    }
+  }
+}
+
+function authHeaders(token: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+// ── Medical store ───────────────────────────────────────────────────────────
+
+export async function getStoreItems(
+  token: string,
+  params?: { category?: string; search?: string; includeInactive?: boolean }
+) {
+  const query = new URLSearchParams();
+  if (params?.category && params.category !== 'all') query.set('category', params.category);
+  if (params?.search) query.set('search', params.search);
+  if (params?.includeInactive) query.set('includeInactive', 'true');
+  const qs = query.toString();
+  return apiCall(`/store/items${qs ? `?${qs}` : ''}`, {
+    headers: authHeaders(token),
+  });
+}
+
+export async function getStoreCategories(token: string) {
+  return apiCall('/store/categories', { headers: authHeaders(token) });
+}
+
+export async function createStoreItem(token: string, body: Record<string, unknown>) {
+  invalidateCache('/store/');
+  return apiCall('/store/items', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateStoreItem(token: string, id: string, body: Record<string, unknown>) {
+  invalidateCache('/store/');
+  return apiCall(`/store/items/${id}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteStoreItem(token: string, id: string) {
+  invalidateCache('/store/');
+  return apiCall(`/store/items/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+}
+
+export async function getCart(token: string) {
+  return apiCall('/store/cart', { headers: authHeaders(token) });
+}
+
+export async function addToCart(token: string, medicineId: string, quantity = 1) {
+  invalidateCache('/store/cart');
+  return apiCall('/store/cart/items', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ medicineId, quantity }),
+  });
+}
+
+export async function updateCartItem(token: string, medicineId: string, quantity: number) {
+  invalidateCache('/store/cart');
+  return apiCall(`/store/cart/items/${medicineId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify({ quantity }),
+  });
+}
+
+export async function removeFromCart(token: string, medicineId: string) {
+  invalidateCache('/store/cart');
+  return apiCall(`/store/cart/items/${medicineId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+}
+
+export async function checkoutCart(
+  token: string,
+  payload?: { deliveryAddress?: string; notes?: string }
+) {
+  invalidateCache('/store/');
+  return apiCall('/store/orders/checkout', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload ?? {}),
+  });
+}
+
+export async function getStoreOrders(token: string) {
+  return apiCall('/store/orders', { headers: authHeaders(token) });
+}
+
+export async function updateOrderStatus(token: string, orderId: string, status: string) {
+  invalidateCache('/store/orders');
+  return apiCall(`/store/orders/${orderId}/status`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify({ status }),
+  });
+}

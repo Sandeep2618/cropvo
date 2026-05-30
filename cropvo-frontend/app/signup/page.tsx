@@ -1,10 +1,9 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signup } from '@/lib/api';
-import { useLazyAutocomplete } from '@/lib/use-lazy-autocomplete';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Button, Input, Form, message } from 'antd';
 import { MailOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
@@ -13,31 +12,23 @@ const roleOptions = ['patient', 'doctor'] as const;
 type Role = (typeof roleOptions)[number];
 
 export default function SignupPage() {
-  const [role, setRole] = useState<Role>('patient');
+  const searchParams = useSearchParams();
+  const initialRole = roleOptions.includes(searchParams.get('role') as Role)
+    ? (searchParams.get('role') as Role)
+    : 'patient';
+
+  const [role, setRole] = useState<Role>(initialRole);
   const [loading, setLoading] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const emailAutocomplete = useLazyAutocomplete();
-  const passwordAutocomplete = useLazyAutocomplete();
-  const confirmPasswordAutocomplete = useLazyAutocomplete();
 
-  useEffect(() => {
-    const r = searchParams.get('role');
-    if (roleOptions.includes(r as Role)) setRole(r as Role);
-  }, [searchParams]);
-
+  
   const handleSubmit = async (values: {
     name: string;
     email: string;
     password: string;
     confirmPassword: string;
   }) => {
-    if (values.password !== values.confirmPassword) {
-      messageApi.error('Passwords do not match. Please confirm your password.');
-      return;
-    }
-
     setLoading(true);
     try {
       const data = await signup(
@@ -56,7 +47,7 @@ export default function SignupPage() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       messageApi.success('Account created successfully! Redirecting...');
-      setTimeout(() => router.push(`/dashboard/${data.user.role}`), 800);
+      router.push(`/dashboard/${data.user.role}`);
     } catch (err) {
       messageApi.error(err instanceof Error ? err.message : 'An unexpected error occurred.');
     } finally {
@@ -75,13 +66,11 @@ export default function SignupPage() {
       <div className="flex flex-1 items-center justify-center px-4 pb-12">
         <div className="w-full max-w-md rounded-[2rem] border border-[var(--border)] bg-[var(--bg-surface)] p-10 shadow-2xl">
 
-          {/* Logo */}
           <div className="pb-10 text-center">
             <div className="text-xs uppercase tracking-[0.35em]" style={{ color: 'var(--accent)' }}>Crovo</div>
             <div className="pt-4 text-5xl font-semibold tracking-tight text-[var(--text-primary)]">Crovo</div>
           </div>
 
-          {/* Role selector */}
           <div className="pb-6">
             <div className="text-sm font-medium pb-3 text-[var(--text-secondary)]">Select Role</div>
             <div className="flex flex-wrap gap-3">
@@ -103,18 +92,13 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Form */}
-          <Form layout="vertical" onFinish={handleSubmit} requiredMark={false} autoComplete="off">
+          <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
             <Form.Item
               name="name"
               label={<div className="text-sm font-medium text-[var(--text-secondary)]">Full Name</div>}
               rules={[{ required: true, message: 'Please enter your name' }]}
             >
-              <Input
-                prefix={<UserOutlined />}
-                placeholder="John Doe"
-                size="large"
-              />
+              <Input prefix={<UserOutlined />} placeholder="John Doe" size="large" autoComplete="name" />
             </Form.Item>
 
             <Form.Item
@@ -125,15 +109,7 @@ export default function SignupPage() {
                 { type: 'email', message: 'Please enter a valid email' },
               ]}
             >
-              <Input
-                {...emailAutocomplete}
-                type="email"
-                name="email"
-                autoComplete="email"
-                prefix={<MailOutlined />}
-                placeholder="john@example.com"
-                size="large"
-              />
+              <Input prefix={<MailOutlined />} placeholder="john@example.com" size="large" autoComplete="email" />
             </Form.Item>
 
             <Form.Item
@@ -144,14 +120,7 @@ export default function SignupPage() {
                 { min: 6, message: 'Password must be at least 6 characters' },
               ]}
             >
-              <Input.Password
-                {...passwordAutocomplete}
-                name="password"
-                autoComplete="new-password"
-                prefix={<LockOutlined />}
-                placeholder="••••••••"
-                size="large"
-              />
+              <Input.Password prefix={<LockOutlined />} placeholder="••••••••" size="large" autoComplete="new-password" />
             </Form.Item>
 
             <Form.Item
@@ -162,22 +131,13 @@ export default function SignupPage() {
                 { required: true, message: 'Please confirm your password' },
                 ({ getFieldValue }) => ({
                   validator(_, value) {
-                    if (!value || getFieldValue('password') === value) {
-                      return Promise.resolve();
-                    }
+                    if (!value || getFieldValue('password') === value) return Promise.resolve();
                     return Promise.reject(new Error('Passwords do not match'));
                   },
                 }),
               ]}
             >
-              <Input.Password
-                {...confirmPasswordAutocomplete}
-                name="confirmPassword"
-                autoComplete="new-password"
-                prefix={<LockOutlined />}
-                placeholder="••••••••"
-                size="large"
-              />
+              <Input.Password prefix={<LockOutlined />} placeholder="••••••••" size="large" autoComplete="new-password" />
             </Form.Item>
 
             <Form.Item className="pt-2">

@@ -9,7 +9,7 @@ export function AntdConfigProvider({ children }: { children: React.ReactNode }) 
   const antdTheme = theme === 'dark' ? antdDarkTheme : antdLightTheme;
 
   return (
-    <ConfigProvider key={theme} theme={antdTheme}>
+    <ConfigProvider theme={antdTheme}>
       {children}
     </ConfigProvider>
   );

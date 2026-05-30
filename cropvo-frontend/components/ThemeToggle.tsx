@@ -1,9 +1,23 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useTheme } from '@/lib/theme';
 
 export default function ThemeToggle() {
   const { theme, toggle } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Render a placeholder with the same dimensions until mounted
+  // This prevents server/client HTML mismatch
+  if (!mounted) {
+    return (
+      <div className="w-[34px] h-[34px] rounded-full border border-[var(--border)] bg-[var(--bg-surface)]" />
+    );
+  }
 
   return (
     <button

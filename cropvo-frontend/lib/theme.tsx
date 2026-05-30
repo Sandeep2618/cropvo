@@ -4,17 +4,6 @@ import { createContext, useContext, useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark';
 
-function readStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
-  try {
-    const stored = localStorage.getItem('theme');
-    if (stored === 'light' || stored === 'dark') return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  } catch {
-    return 'dark';
-  }
-}
-
 interface ThemeContextValue {
   theme: Theme;
   toggle: () => void;
@@ -27,19 +16,32 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 function applyTheme(t: Theme) {
   const root = document.documentElement;
-  if (t === 'dark') {
-    root.classList.add('dark');
-  } else {
-    root.classList.remove('dark');
-  }
+  root.classList.toggle('dark', t === 'dark');
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(readStoredTheme);
+  // Always start with 'dark' on both server and client to avoid hydration mismatch.
+  // The correct theme is applied after mount via useEffect.
+  const [theme, setTheme] = useState<Theme>('dark');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    // Read the real theme from localStorage / system preference after mount
+    let resolved: Theme = 'dark';
+    try {
+      const stored = localStorage.getItem('theme');
+      if (stored === 'light' || stored === 'dark') {
+        resolved = stored;
+      } else {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+    } catch {
+      resolved = 'dark';
+    }
+    setTheme(resolved);
+    applyTheme(resolved);
+    setMounted(true);
+  }, []);
 
   const toggle = () => {
     setTheme((prev) => {

@@ -349,10 +349,17 @@ Ant Design (`antd`) is installed and configured. Use it for:
 - Tables (`Table` with `ColumnsType`)
 - Select dropdowns
 
-### Setup
-- `AntdRegistry` + `ConfigProvider` wrap the app in `app/layout.tsx`
-- Theme config lives in `lib/antd-theme.ts` — teal primary, pill-shaped buttons/inputs
-- Always use `message.useMessage()` hook (not the static `message.success()`) for proper SSR compatibility
+### AntD Theme Setup
+
+The theme is split into two exports in `lib/antd-theme.ts`:
+- `antdDarkTheme` — used when `.dark` class is on `<html>`
+- `antdLightTheme` — used in light mode
+
+`lib/antd-config-provider.tsx` reads the current theme from `useTheme()` and passes the correct one to `ConfigProvider`. **Never import `antdTheme` — it does not exist.**
+
+`app/layout.tsx` wraps the app as: `AntdRegistry → ThemeProvider → AntdConfigProvider → children`
+
+A blocking inline script in `<head>` applies the `.dark` class before first paint to prevent flash.
 
 ### Message notifications
 ```tsx

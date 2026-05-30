@@ -1,7 +1,8 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { deleteUser, getUsers, updateUserRole } from '@/lib/api';
 import DashboardHeader from '@/components/DashboardHeader';
 import { Button, Select, message, Popconfirm, Table } from 'antd';
@@ -15,14 +16,29 @@ interface User {
   role: string;
 }
 
+// Read auth from localStorage synchronously at module evaluation time
+function getAuthState() {
+  if (typeof window === 'undefined') return { user: null, token: null, isAuthorized: false };
+  try {
+    const raw = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    const user = raw ? (JSON.parse(raw) as User) : null;
+    return { user, token, isAuthorized: user?.role === 'admin' && !!token };
+  } catch {
+    return { user: null, token: null, isAuthorized: false };
+  }
+}
+
 export default function AdminDashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+  const initialized = useRef(false);
+  const { user, token, isAuthorized } = getAuthState();
+
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [stats, setStats] = useState({ patients: 0, doctors: 0, admins: 0 });
   const [messageApi, contextHolder] = message.useMessage();
-  const router = useRouter();
 
   const refreshStats = (items: User[]) => {
     setStats({
@@ -32,10 +48,10 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const fetchUsers = useCallback(async (token: string) => {
-    setLoading(true);
+  const fetchUsers = useCallback(async (t: string) => {
+    setTableLoading(true);
     try {
-      const response = await getUsers(token);
+      const response = await getUsers(t);
       if (response.success) {
         setUsers(response.data);
         refreshStats(response.data);
@@ -45,37 +61,31 @@ export default function AdminDashboardPage() {
     } catch {
       messageApi.error('Failed to fetch user list.');
     } finally {
-      setLoading(false);
+      setTableLoading(false);
     }
   }, [messageApi]);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
+    if (initialized.current) return;
+    initialized.current = true;
 
-    if (!storedUser || !token) {
+    if (!isAuthorized) {
       router.replace('/login');
       return;
     }
 
-    const parsedUser = JSON.parse(storedUser) as User;
-    if (parsedUser.role !== 'admin') {
-      router.replace('/login');
-      return;
-    }
-
-    Promise.resolve().then(() => {
-      setUser(parsedUser);
-      fetchUsers(token);
-    });
-  }, [router, fetchUsers]);
+    // Defer the API call so it runs after the first paint — avoids setState-in-effect warning
+    const id = setTimeout(() => fetchUsers(token!), 0);
+    return () => clearTimeout(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDelete = async (userId: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const t = localStorage.getItem('token');
+    if (!t) return;
     setActionLoading(true);
     try {
-      const response = await deleteUser(userId, token);
+      const response = await deleteUser(userId, t);
       if (response.success) {
         const updated = users.filter((i) => i.id !== userId);
         setUsers(updated);
@@ -92,11 +102,11 @@ export default function AdminDashboardPage() {
   };
 
   const handleRoleChange = async (userId: string, role: string) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const t = localStorage.getItem('token');
+    if (!t) return;
     setActionLoading(true);
     try {
-      const response = await updateUserRole(userId, role, token);
+      const response = await updateUserRole(userId, role, t);
       if (response.success) {
         const updated = users.map((i) => (i.id === userId ? { ...i, role } : i));
         setUsers(updated);
@@ -161,12 +171,7 @@ export default function AdminDashboardPage() {
           cancelText="Cancel"
           okButtonProps={{ danger: true }}
         >
-          <Button
-            danger
-            size="small"
-            icon={<DeleteOutlined />}
-            loading={actionLoading}
-          >
+          <Button danger size="small" icon={<DeleteOutlined />} loading={actionLoading}>
             Delete
           </Button>
         </Popconfirm>
@@ -174,7 +179,8 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  if (loading) {
+  // Not authorized — show spinner while redirect fires
+  if (!isAuthorized) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--bg-page)]">
         <div className="w-8 h-8 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
@@ -190,14 +196,23 @@ export default function AdminDashboardPage() {
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border)] bg-[var(--bg-surface)] p-8 shadow-xl">
 
-          {/* ── Page title ── */}
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.3em]" style={{ color: 'var(--accent)' }}>Admin portal</div>
             <div className="pt-3 text-3xl font-bold text-[var(--text-primary)]">Manage patients, doctors, and access rights</div>
             <div className="pt-2 text-[var(--text-secondary)]">Update roles, remove users, and review the current system state.</div>
           </div>
 
-          {/* ── Stats ── */}
+          <Link
+            href="/dashboard/admin/inventory"
+            className="flex items-center justify-between rounded-2xl border border-[var(--accent)] bg-[var(--accent-light)] px-6 py-4 transition hover:opacity-90"
+          >
+            <div>
+              <div className="font-semibold text-[var(--text-primary)]">Medical store inventory</div>
+              <div className="pt-1 text-sm text-[var(--text-secondary)]">Add medicines, manage stock, prices, and customer orders</div>
+            </div>
+            <div className="text-sm font-medium" style={{ color: 'var(--accent)' }}>Manage →</div>
+          </Link>
+
           <div className="grid gap-4 md:grid-cols-3">
             {[
               { label: 'Patients', value: stats.patients },
@@ -211,11 +226,11 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          {/* ── Users table ── */}
           <Table
             dataSource={users}
             columns={columns}
             rowKey="id"
+            loading={tableLoading}
             pagination={{ pageSize: 10, showSizeChanger: false }}
             className="rounded-2xl overflow-hidden"
           />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import DashboardHeader from '@/components/DashboardHeader';
 
 interface User {
@@ -63,14 +64,18 @@ export default function PatientDashboardPage() {
           {/* ── Cards ── */}
           <div className="pt-8 grid gap-6 md:grid-cols-3">
             {[
-              { title: 'Book Doctor',  desc: 'Browse available specialists and schedule appointments with confidence.' },
-              { title: 'Medicine',     desc: 'View prescriptions and treatment details created by your care team.' },
-              { title: 'Profile',      desc: 'Update your personal information and contact preferences.' },
+              { title: 'Book Doctor',  desc: 'Browse available specialists and schedule appointments with confidence.', href: '#' },
+              { title: 'Medical Store', desc: 'Order medicines from the Crovo pharmacy with cart and checkout.', href: '/dashboard/patient/store' },
+              { title: 'Profile',      desc: 'Update your personal information and contact preferences.', href: '#' },
             ].map((card) => (
-              <div key={card.title} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-inner)] p-6 transition hover:border-[var(--accent)]">
+              <Link
+                key={card.title}
+                href={card.href}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--bg-inner)] p-6 transition hover:border-[var(--accent)] block"
+              >
                 <div className="text-lg font-semibold text-[var(--text-primary)]">{card.title}</div>
                 <div className="pt-3 text-sm text-[var(--text-secondary)]">{card.desc}</div>
-              </div>
+              </Link>
             ))}
           </div>
 
